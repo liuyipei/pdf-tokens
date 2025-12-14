@@ -1,0 +1,42 @@
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <title>PDF Capture Prototype</title>
+    <link rel="stylesheet" href="./styles.css" />
+  </head>
+  <body>
+    <main>
+      <header>
+        <h1>PDF Capture Prototype</h1>
+        <p>Select a PDF, start extraction, and inspect timing, text, and captured pages.</p>
+      </header>
+      <section class="controls">
+        <button id="pick">Open PDF</button>
+        <span id="selected">No file chosen</span>
+        <label>
+          Timeout (ms)
+          <input id="timeout" type="number" value="10000" />
+        </label>
+        <label class="checkbox">
+          <input id="capture" type="checkbox" checked /> Capture images
+        </label>
+        <button id="start" disabled>Start extraction</button>
+      </section>
+      <section class="logs">
+        <h2>Progress</h2>
+        <div id="log"></div>
+      </section>
+      <section class="thumbnails">
+        <h2>Thumbnails</h2>
+        <div id="thumbs"></div>
+      </section>
+      <section class="text">
+        <h2>Text</h2>
+        <pre id="text"></pre>
+      </section>
+    </main>
+    <script type="module" src="./main.js"></script>
+  </body>
+</html>

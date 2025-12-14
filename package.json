@@ -1,0 +1,22 @@
+{
+  "name": "pdf-tokens",
+  "version": "0.1.0",
+  "description": "Electron PDF capture prototype",
+  "main": "dist/main/index.js",
+  "scripts": {
+    "build": "tsc && node scripts/copy-static.mjs",
+    "dev": "npm run build && electron .",
+    "test": "vitest run",
+    "lint": "tsc --noEmit",
+    "capture": "npm run build && node dist/main/cli.js"
+  },
+  "dependencies": {
+    "electron": "29.4.4",
+    "pdfjs-dist": "4.8.69"
+  },
+  "devDependencies": {
+    "@types/node": "22.9.0",
+    "typescript": "5.6.3",
+    "vitest": "1.2.1"
+  }
+}

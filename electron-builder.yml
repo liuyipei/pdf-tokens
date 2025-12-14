@@ -1,0 +1,7 @@
+appId: com.example.pdfcapture
+productName: PDF Capture Prototype
+directories:
+  output: release
+files:
+  - dist/**/*
+  - package.json

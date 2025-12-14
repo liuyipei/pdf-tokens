@@ -14,7 +14,7 @@ Create a small, self-contained repository that exercises PDF text and image capt
   - Launches a BrowserWindow hosting a simple UI.
   - Manages PDF selection via `dialog.showOpenDialog` and passes file paths to renderer via IPC.
   - Provides main-process PDF extraction utilities using `pdfjs-dist` with worker disabled (`worker: false`) and `GlobalWorkerOptions.workerSrc` set explicitly.
-  - Captures page images using `BrowserWindow.webContents.printToPDF` or `capturePage` on a hidden `BrowserView` that loads the PDF via `file://` URL.
+  - Captures page images using a hidden `BrowserView` that loads the PDF via `file://` URL and uses `capturePage`.
 - **Renderer process**
   - Minimal UI: file picker button, log area, thumbnails area for captured images.
   - Sends IPC requests to main to start extraction and displays progress/results streamed from main.
@@ -28,7 +28,7 @@ Create a small, self-contained repository that exercises PDF text and image capt
 2. **Extract**
    - Main reads PDF bytes into `Uint8Array`, calls `pdfjs.getDocument({ data, worker: false, useSystemFonts: true, disableAutoFetch: true, nativeImageDecoding: false })`.
    - Iterates pages sequentially, emitting progress after each `getPage` and `getTextContent`.
-   - For each page, loads it into a hidden `BrowserView` (or uses `page.render` into canvas via `node-canvas` if we prefer headless) and calls `capturePage` to generate PNG buffers.
+   - For each page, loads it into a hidden `BrowserView` and calls `capturePage` to generate PNG buffers.
 3. **Display**
    - Renderer receives text snippets and base64-encoded PNGs, showing thumbnails and text preview with timing metadata.
 
@@ -53,10 +53,13 @@ Create a small, self-contained repository that exercises PDF text and image capt
       pdf-extractor.ts (pdfjs-dist text extraction with timeouts)
       pdf-capture.ts (BrowserView setup + capturePage per page)
       logging.ts (structured logging with timestamps)
+      preload.ts (secure context bridge for renderer)
+      cli.ts (headless text extraction helper)
     renderer/
-      main.ts (Svelte/Vite or plain TS + minimal UI)
-      components/ProgressPane.tsx|svelte (shows steps, durations)
+      index.html (minimal UI shell)
+      main.ts (UI logic)
       ipc.ts (typed channel helpers)
+      styles.css (basic styling)
     shared/
       types.ts (IPC contracts, event payloads)
   design/
@@ -65,8 +68,6 @@ Create a small, self-contained repository that exercises PDF text and image capt
     pdf-extractor.spec.ts (node-based unit tests with fixture PDFs)
   fixtures/
     sample-3page.pdf
-    large-images.pdf
-    unicode-fonts.pdf
 ```
 
 ## Test Scenarios to Cover
@@ -83,7 +84,8 @@ Create a small, self-contained repository that exercises PDF text and image capt
 - Optional disk trace: write JSON log per run containing the configuration, timings, and any errors.
 
 ## Scripts
-- `npm run dev`: start Electron with live reload.
+- `npm run build`: compile TypeScript and copy renderer HTML/CSS into `dist/`.
+- `npm run dev`: build and launch Electron pointed at the compiled renderer assets.
 - `npm run test`: run node-based extractor tests.
 - `npm run capture -- --file path/to.pdf`: CLI trigger for headless extraction (no renderer) to speed iteration.
 
