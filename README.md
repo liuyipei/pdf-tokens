@@ -1,93 +1,288 @@
-# Electron PDF Capture Prototype Repo Design
+# Minimal PDF-to-Image Electron App
 
-## Goal
-Create a small, self-contained repository that exercises PDF text and image capture in Electron (no LLM calls) so we can iterate quickly on extraction issues without touching the main app. The prototype should simulate real-world PDF usage patterns, stress suspected failure cases, and surface timing/logging that help us debug hangs or silent failures.
+## Purpose
 
-## Scope
-- Runs in Electron main and renderer processes with Node.js 22 (aligning with the target stack).
-- Opens local PDF files and captures per-page images plus optional text extraction for debugging.
-- Exposes clear logging/metrics to detect hangs, long-running steps, and malformed content.
-- No network calls to LLMs; everything remains local/offline.
+Create a minimal Electron application to debug and validate PDF-to-image conversion approaches. This standalone app isolates PDF rendering from LLM integration complexity, allowing us to test different extraction strategies.
 
-## High-Level Architecture
-- **Electron main process**
-  - Launches a BrowserWindow hosting a simple UI.
-  - Manages PDF selection via `dialog.showOpenDialog` and passes file paths to renderer via IPC.
-  - Provides main-process PDF extraction utilities using `pdfjs-dist` with worker disabled (`worker: false`) and `GlobalWorkerOptions.workerSrc` set explicitly.
-  - Captures page images using `BrowserWindow.webContents.printToPDF` or `capturePage` on a hidden `BrowserView` that loads the PDF via `file://` URL.
-- **Renderer process**
-  - Minimal UI: file picker button, log area, thumbnails area for captured images.
-  - Sends IPC requests to main to start extraction and displays progress/results streamed from main.
-- **Shared utilities**
-  - Typed IPC channels for progress events (`start`, `page-start`, `page-text`, `page-image`, `page-error`, `done`).
-  - Configurable timeouts per step to surface hangs.
+## Goals
 
-## Key User Flows
-1. **Open PDF**
-   - User clicks “Open PDF”; renderer requests main to show open dialog; selected file path returns to renderer and triggers extraction.
-2. **Extract**
-   - Main reads PDF bytes into `Uint8Array`, calls `pdfjs.getDocument({ data, worker: false, useSystemFonts: true, disableAutoFetch: true, nativeImageDecoding: false })`.
-   - Iterates pages sequentially, emitting progress after each `getPage` and `getTextContent`.
-   - For each page, loads it into a hidden `BrowserView` (or uses `page.render` into canvas via `node-canvas` if we prefer headless) and calls `capturePage` to generate PNG buffers.
-3. **Display**
-   - Renderer receives text snippets and base64-encoded PNGs, showing thumbnails and text preview with timing metadata.
+1. Load PDF files from disk via file picker
+2. Display PDF in WebContentsView using `<embed>` tag
+3. Extract images of all PDF pages (not just visible ones)
+4. Extract text from all PDF pages using `pdfjs-dist`
+5. Display extracted content in the UI for verification
+6. Measure and log performance metrics
 
-## Error & Hang Detection (Suspected Sources)
-- **Worker misconfiguration**: enforce `worker: false`; log if worker tries to start.
-- **Path handling**: normalize `file://` URIs; percent-encode spaces; prefer `data` buffer fallback.
-- **Page fetch timeouts**: wrap `getPage`, `getTextContent`, and capture calls in `Promise.race` with configurable timeout; log and continue on timeout.
-- **Large assets**: detect images/fonts fetch attempts and log `autoFetch`/`nativeImageDecoding` usage.
-- **Renderer crash**: monitor `BrowserView`/`webContents` `did-fail-load`, `crashed`, and `render-process-gone` events; retry or bail with diagnostic info.
-- **Memory pressure**: per-page cleanup (destroy `BrowserView`, `nativeImage` buffers) and optional concurrency limit (default 1) to mimic problematic 3-page reproduction.
-- **Invisible hangs**: timestamp every major step; emit heartbeat events so UI can flag stalled operations.
+## Tech Stack
 
-## Repository Structure
+- **Electron**: 39.x
+- **Node.js**: 22.x
+- **TypeScript**: Latest
+- **pdfjs-dist**: 5.4.449 (Mozilla's PDF.js for Node.js)
+- **Build**: electron-builder
+
+## Architecture
+
+### Application Structure
+
 ```
-/ (new repo root)
-  package.json (Electron app scripts)
-  electron-builder.yml (minimal packaging, optional)
-  src/
-    main/
-      index.ts (app entry, window creation)
-      ipc.ts (channel wiring)
-      pdf-extractor.ts (pdfjs-dist text extraction with timeouts)
-      pdf-capture.ts (BrowserView setup + capturePage per page)
-      logging.ts (structured logging with timestamps)
-    renderer/
-      main.ts (Svelte/Vite or plain TS + minimal UI)
-      components/ProgressPane.tsx|svelte (shows steps, durations)
-      ipc.ts (typed channel helpers)
-    shared/
-      types.ts (IPC contracts, event payloads)
-  design/
-    scenarios.md (test cases and reproduction steps)
-  tests/
-    pdf-extractor.spec.ts (node-based unit tests with fixture PDFs)
-  fixtures/
-    sample-3page.pdf
-    large-images.pdf
-    unicode-fonts.pdf
+minimal-pdf-debugger/
+├── src/
+│   ├── main/
+│   │   ├── main.ts              # Electron main process entry
+│   │   ├── pdf-extractor.ts     # PDF text/image extraction logic
+│   │   └── preload.ts           # IPC bridge
+│   ├── renderer/
+│   │   ├── index.html           # Main window UI
+│   │   ├── renderer.ts          # UI logic and IPC calls
+│   │   └── styles.css           # Basic styling
+│   └── types/
+│       └── index.d.ts           # Shared TypeScript types
+├── package.json
+├── tsconfig.json
+└── README.md
 ```
 
-## Test Scenarios to Cover
-- **Baseline 3-page PDF**: ensure extraction completes with text and images; verify timings logged and no hangs.
-- **File path edge cases**: spaces, unicode paths; compare `file://` URL vs `data` buffer input.
-- **Worker off vs on**: flag if worker accidentally starts; ensure `worker: false` path works.
-- **Large image pages**: capturePage under memory pressure; check for slowdowns or timeouts.
-- **Fonts/unicode**: confirm `useSystemFonts: true` resolves text; log glyph fallback issues.
-- **Renderer crash simulation**: intentionally destroy the BrowserView mid-extraction to verify error handling.
+### Main Process Responsibilities
 
-## Instrumentation & Observability
-- Structured logs with step names, page numbers, start/end timestamps, and durations.
-- In-UI timeline showing each step per page; highlight any step exceeding threshold.
-- Optional disk trace: write JSON log per run containing the configuration, timings, and any errors.
+1. **Window Management**: Create BrowserWindow with WebContentsView for PDF display
+2. **File Operations**: Handle file picker dialog and file path validation
+3. **PDF Extraction**: Use `pdfjs-dist` to extract text from all pages
+4. **Image Capture**: Capture page screenshots from WebContentsView
+5. **IPC Handlers**: Expose extraction functions to renderer process
 
-## Scripts
-- `npm run dev`: start Electron with live reload.
-- `npm run test`: run node-based extractor tests.
-- `npm run capture -- --file path/to.pdf`: CLI trigger for headless extraction (no renderer) to speed iteration.
+### Renderer Process Responsibilities
 
-## Open Questions / Follow-ups
-- Should we prefer headless canvas rendering (via `pdfjs-dist` + `canvas`) instead of `BrowserView.capturePage` for determinism? Start with BrowserView to mirror prod behavior.
-- Do we need Windows/macOS CI builds to catch platform-specific worker issues? Start with Linux GitHub Actions runner.
-- How to bundle fonts for consistent text extraction? Consider packaging a small font set for CI runs.
+1. **UI Controls**: File picker button, extraction trigger, results display
+2. **PDF Display**: Show selected PDF in `<embed>` element
+3. **Results Rendering**: Display extracted text and images with page numbers
+4. **Progress Indication**: Show extraction status and timing
+
+## Key Components
+
+### 1. PDF Text Extraction (Node.js)
+
+```typescript
+// src/main/pdf-extractor.ts
+import { getDocument } from 'pdfjs-dist/legacy/build/pdf.mjs';
+
+interface PageContent {
+  pageNumber: number;
+  text: string;
+  extractionTimeMs: number;
+}
+
+export async function extractPdfText(filePath: string): Promise<PageContent[]> {
+  const startTime = Date.now();
+  const loadingTask = getDocument(filePath);
+  const doc = await loadingTask.promise;
+
+  const pages: PageContent[] = [];
+
+  for (let i = 1; i <= doc.numPages; i++) {
+    const pageStart = Date.now();
+    const page = await doc.getPage(i);
+    const textContent = await page.getTextContent();
+    const text = textContent.items.map((item: any) => item.str).join(' ');
+
+    pages.push({
+      pageNumber: i,
+      text,
+      extractionTimeMs: Date.now() - pageStart
+    });
+  }
+
+  console.log(`Total extraction time: ${Date.now() - startTime}ms for ${doc.numPages} pages`);
+  return pages;
+}
+```
+
+### 2. PDF Image Capture (Electron)
+
+**Approach A: WebContentsView Screenshot** (Current)
+```typescript
+// Capture visible page only - limited by DOM virtualization
+async function captureVisiblePage(view: WebContentsView): Promise<Buffer> {
+  const image = await view.webContents.capturePage();
+  return image.toPNG();
+}
+```
+
+**Approach B: Programmatic Navigation + Capture** (To Test)
+```typescript
+// Navigate through pages and capture each
+async function captureAllPages(view: WebContentsView, numPages: number): Promise<Buffer[]> {
+  const images: Buffer[] = [];
+
+  for (let i = 1; i <= numPages; i++) {
+    await view.webContents.executeJavaScript(`
+      const embed = document.querySelector('embed');
+      embed.src = embed.src.split('#')[0] + '#page=' + ${i};
+    `);
+
+    await new Promise(resolve => setTimeout(resolve, 500)); // Wait for render
+
+    const image = await view.webContents.capturePage();
+    images.push(image.toPNG());
+  }
+
+  return images;
+}
+```
+
+**Approach C: Server-Side Rendering** (Alternative)
+```typescript
+// Requires canvas package or pdf-to-png package
+// Use pdfjs-dist with node-canvas to render pages server-side
+// Avoids DOM virtualization entirely
+```
+
+### 3. Main Window UI
+
+```html
+<!-- src/renderer/index.html -->
+<!DOCTYPE html>
+<html>
+<head>
+  <title>PDF to Image Debugger</title>
+  <link rel="stylesheet" href="styles.css">
+</head>
+<body>
+  <div class="container">
+    <header>
+      <h1>PDF Extraction Debugger</h1>
+      <button id="selectFile">Select PDF</button>
+      <button id="extract" disabled>Extract Content</button>
+    </header>
+
+    <div class="content">
+      <div class="preview">
+        <h2>PDF Preview</h2>
+        <div id="pdfContainer"></div>
+      </div>
+
+      <div class="results">
+        <h2>Extraction Results</h2>
+        <div id="status"></div>
+        <div id="textResults"></div>
+        <div id="imageResults"></div>
+      </div>
+    </div>
+  </div>
+
+  <script src="renderer.ts"></script>
+</body>
+</html>
+```
+
+### 4. IPC Communication
+
+```typescript
+// src/main/main.ts - Register handlers
+ipcMain.handle('select-pdf', async () => {
+  const result = await dialog.showOpenDialog({
+    properties: ['openFile'],
+    filters: [{ name: 'PDFs', extensions: ['pdf'] }]
+  });
+  return result.filePaths[0];
+});
+
+ipcMain.handle('extract-pdf-content', async (event, filePath: string) => {
+  const textPages = await extractPdfText(filePath);
+  const images = await captureAllPages(pdfView, textPages.length);
+  return { textPages, images };
+});
+```
+
+```typescript
+// src/renderer/renderer.ts - Call handlers
+document.getElementById('selectFile')?.addEventListener('click', async () => {
+  const filePath = await window.electron.selectPdf();
+  if (filePath) {
+    displayPdf(filePath);
+    document.getElementById('extract').disabled = false;
+  }
+});
+
+document.getElementById('extract')?.addEventListener('click', async () => {
+  const content = await window.electron.extractPdfContent(currentFilePath);
+  displayResults(content);
+});
+```
+
+## What We're Testing
+
+### Primary Questions
+
+1. **Does `pdfjs-dist` hang on certain PDFs?**
+   - Test with 1-page, 3-page, 10-page, 50-page PDFs
+   - Log extraction time per page
+   - Identify if specific pages cause hangs
+
+2. **Can we capture all pages via navigation?**
+   - Test programmatic `#page=N` navigation
+   - Measure render delay needed between pages
+   - Verify images match page content
+
+3. **What causes the "Streaming" hang?**
+   - Extract content and display in simple UI
+   - Verify extracted text is well-formed
+   - Check if image buffers are corrupted
+
+4. **Performance characteristics**
+   - Measure text extraction time per page
+   - Measure image capture time per page
+   - Identify bottlenecks for optimization
+
+### Success Criteria
+
+- [ ] Extract text from all pages of multi-page PDF
+- [ ] Capture images of all pages (not just page 1)
+- [ ] No hanging or silent failures
+- [ ] Extraction completes in reasonable time (<1s per page)
+- [ ] Text and images display correctly in UI
+
+## Implementation Phases
+
+### Phase 1: Basic PDF Loading
+- Create Electron window with WebContentsView
+- Implement file picker
+- Display PDF in embed tag
+- Verify single-page PDFs work
+
+### Phase 2: Text Extraction
+- Integrate `pdfjs-dist`
+- Extract text from all pages
+- Display text with page numbers
+- Log performance metrics
+
+### Phase 3: Image Capture Experiments
+- Test Approach A (visible page only)
+- Test Approach B (navigation + capture)
+- Compare results and performance
+- Document findings
+
+### Phase 4: Edge Cases
+- Test large PDFs (50+ pages)
+- Test PDFs with complex layouts
+- Test scanned PDFs (images only, no text)
+- Test password-protected PDFs
+
+## Expected Learnings
+
+This minimal app will help us determine:
+
+1. **Root cause of hanging**: Is it `pdfjs-dist`, image capture, or our integration?
+2. **Best capture strategy**: Which approach reliably captures all pages?
+3. **Performance limits**: How many pages can we handle efficiently?
+4. **Integration patterns**: How to properly use `pdfjs-dist` in Electron
+
+## Differences from Main App
+
+- **No LLM integration**: Eliminates API calls, streaming, token counting
+- **No database**: No persistence, pure in-memory processing
+- **Minimal UI**: Focus on debugging, not polish
+- **Synchronous flow**: Simple button clicks, immediate results
+- **Verbose logging**: Console output for every step
+
+This isolation makes it easy to identify whether issues are in PDF handling or LLM integration.
