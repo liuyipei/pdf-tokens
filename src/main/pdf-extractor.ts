@@ -1,7 +1,10 @@
 import path from 'node:path';
 import { pathToFileURL } from 'node:url';
 import { performance } from 'node:perf_hooks';
-import { createCanvas, Image } from 'canvas';
+import { createCanvas } from 'canvas';
+
+// eslint-disable-next-line @typescript-eslint/no-var-requires
+const { Image } = require('canvas') as typeof import('canvas');
 import type { ExtractedContent, PageImage, PageText } from '../types';
 
 type PdfJsModule = typeof import('pdfjs-dist');
