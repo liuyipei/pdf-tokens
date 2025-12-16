@@ -286,3 +286,19 @@ This minimal app will help us determine:
 - **Verbose logging**: Console output for every step
 
 This isolation makes it easy to identify whether issues are in PDF handling or LLM integration.
+
+## Getting Started
+
+1. Install dependencies (Node.js 22.x recommended):
+
+   ```bash
+   npm install
+   ```
+
+2. Start the Electron app:
+
+   ```bash
+   npm start
+   ```
+
+3. Use **Select PDF** to choose a file, then **Extract Content** to run text extraction and page captures. Results and timings are shown in the main window while the PDF renders in the WebContentsView sidebar.

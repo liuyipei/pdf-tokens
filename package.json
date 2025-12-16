@@ -1,0 +1,31 @@
+{
+  "name": "minimal-pdf-debugger",
+  "version": "0.1.0",
+  "description": "Minimal Electron app for debugging PDF text and image extraction",
+  "main": "dist/main/main.js",
+  "scripts": {
+    "build": "tsc -p tsconfig.json && cp -r src/renderer dist/renderer",
+    "start": "npm run build && electron .",
+    "clean": "rimraf dist"
+  },
+  "author": "",
+  "license": "MIT",
+  "devDependencies": {
+    "@types/node": "^22.7.4",
+    "electron": "^39.0.2",
+    "electron-builder": "^25.1.8",
+    "rimraf": "^6.0.1",
+    "typescript": "^5.5.4"
+  },
+  "dependencies": {
+    "pdfjs-dist": "5.4.449"
+  },
+  "build": {
+    "appId": "com.example.minimalpdfdebugger",
+    "files": ["dist/**/*", "package.json"],
+    "asar": false,
+    "directories": {
+      "buildResources": "build"
+    }
+  }
+}
