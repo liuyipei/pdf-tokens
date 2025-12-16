@@ -18,12 +18,15 @@
     "typescript": "^5.5.4"
   },
   "dependencies": {
-    "canvas": "^3.1.0",
-    "pdfjs-dist": "5.4.449"
+    "@napi-rs/canvas": "^0.1.84",
+    "pdfjs-dist": "^5.4.449"
   },
   "build": {
     "appId": "com.example.minimalpdfdebugger",
-    "files": ["dist/**/*", "package.json"],
+    "files": [
+      "dist/**/*",
+      "package.json"
+    ],
     "asar": false,
     "directories": {
       "buildResources": "build"

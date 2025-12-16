@@ -1,18 +1,20 @@
 import path from 'node:path';
 import { pathToFileURL } from 'node:url';
 import { performance } from 'node:perf_hooks';
-import { createCanvas, Image } from 'canvas';
+import { createCanvas, Image, DOMMatrix, ImageData, Path2D } from '@napi-rs/canvas';
 import { getDocument, GlobalWorkerOptions } from 'pdfjs-dist/legacy/build/pdf.mjs';
 import type { ExtractedContent, PageImage, PageText } from '../types';
 
 /**
- * pdf.js will create Image instances when painting inline images. When running in
- * Node via node-canvas, we need to expose the canvas Image constructor on the
- * global object so drawImage receives a valid backing type instead of throwing
- * "Image or Canvas expected".
+ * pdfjs-dist 5.x expects @napi-rs/canvas and these browser globals to be available.
+ * We polyfill them here to ensure PDF rendering with embedded images works correctly.
  */
 // eslint-disable-next-line @typescript-eslint/no-explicit-any
-(globalThis as any).Image = Image;
+const g = globalThis as any;
+if (!g.Image) g.Image = Image;
+if (!g.DOMMatrix) g.DOMMatrix = DOMMatrix;
+if (!g.ImageData) g.ImageData = ImageData;
+if (!g.Path2D) g.Path2D = Path2D;
 
 const workerPath = path.join(__dirname, '../../node_modules/pdfjs-dist/legacy/build/pdf.worker.min.mjs');
 GlobalWorkerOptions.workerSrc = pathToFileURL(workerPath).href;
