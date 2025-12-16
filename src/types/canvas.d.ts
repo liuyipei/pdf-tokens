@@ -1,9 +1,5 @@
-declare module 'canvas' {
-  export interface CanvasRenderingContext2D {}
-  export interface Canvas {
-    getContext(contextId: '2d'): CanvasRenderingContext2D;
-    toDataURL(): string;
-  }
+// Type declarations for @napi-rs/canvas are provided by the package itself.
+// This file serves as additional type augmentations if needed.
 
-  export function createCanvas(width: number, height: number): Canvas;
-}
+// Re-export commonly used types
+export {};
