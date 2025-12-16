@@ -49,11 +49,6 @@ function layoutPdfView(): void {
     height,
   });
 
-  pdfView.setAutoResize({
-    horizontal: false,
-    vertical: true,
-  });
-
   mainWindow.webContents.send('pdf-view-size', PDF_VIEW_WIDTH);
 }
 
