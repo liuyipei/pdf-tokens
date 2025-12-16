@@ -1,8 +1,7 @@
 import path from 'node:path';
-import { performance } from 'node:perf_hooks';
 import { app, BrowserWindow, dialog, ipcMain, WebContentsView } from 'electron';
-import { extractPdfText } from './pdf-extractor';
-import type { ExtractedContent, PageImage } from '../types';
+import { extractPdfContent } from './pdf-extractor';
+import type { ExtractedContent } from '../types';
 
 const PDF_VIEW_WIDTH = 520;
 
@@ -72,37 +71,6 @@ async function loadPdfInView(filePath: string): Promise<void> {
   await pdfView.webContents.loadURL(dataUrl);
 }
 
-async function captureAllPages(pageCount: number): Promise<PageImage[]> {
-  if (!pdfView) return [];
-
-  const images: PageImage[] = [];
-
-  for (let i = 1; i <= pageCount; i += 1) {
-    const captureStart = performance.now();
-    const navigationScript = `(() => {
-      const embed = document.getElementById('pdf-embed');
-      if (!embed) return false;
-      const base = embed.dataset.base || embed.src.split('#')[0];
-      embed.dataset.base = base;
-      embed.src = base + '#page=${i}';
-      return true;
-    })();`;
-    await pdfView.webContents.executeJavaScript(navigationScript);
-
-    // give the pdf renderer a moment to update
-    await pdfView.webContents.executeJavaScript('new Promise(resolve => setTimeout(resolve, 400));');
-
-    const image = await pdfView.webContents.capturePage();
-    images.push({
-      pageNumber: i,
-      dataUrl: image.toDataURL(),
-      captureTimeMs: Math.round(performance.now() - captureStart),
-    });
-  }
-
-  return images;
-}
-
 app.whenReady().then(() => {
   createWindow();
 
@@ -138,12 +106,6 @@ ipcMain.handle('extract-pdf-content', async (_event, filePath: string): Promise<
     await loadPdfInView(filePath);
   }
 
-  const textResult = await extractPdfText(filePath);
-  const images = await captureAllPages(textResult.pageCount);
-
-  return {
-    textPages: textResult.pages,
-    images,
-    totalExtractionTimeMs: textResult.totalTimeMs + images.reduce((sum, img) => sum + img.captureTimeMs, 0),
-  };
+  const extraction = await extractPdfContent(filePath);
+  return extraction;
 });
