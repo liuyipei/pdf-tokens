@@ -1,10 +1,11 @@
 import path from 'node:path';
+import { pathToFileURL } from 'node:url';
 import { performance } from 'node:perf_hooks';
 import { getDocument, GlobalWorkerOptions } from 'pdfjs-dist/legacy/build/pdf.mjs';
 import type { PageText } from '../types';
 
-const workerSrc = path.join(__dirname, '../../node_modules/pdfjs-dist/legacy/build/pdf.worker.min.mjs');
-GlobalWorkerOptions.workerSrc = workerSrc;
+const workerPath = path.join(__dirname, '../../node_modules/pdfjs-dist/legacy/build/pdf.worker.min.mjs');
+GlobalWorkerOptions.workerSrc = pathToFileURL(workerPath).href;
 
 export interface TextExtractionResult {
   pages: PageText[];
@@ -14,7 +15,7 @@ export interface TextExtractionResult {
 
 export async function extractPdfText(filePath: string): Promise<TextExtractionResult> {
   const startTime = performance.now();
-  const loadingTask = getDocument({ url: filePath });
+  const loadingTask = getDocument({ url: pathToFileURL(filePath).href });
   const doc = await loadingTask.promise;
 
   const pages: PageText[] = [];

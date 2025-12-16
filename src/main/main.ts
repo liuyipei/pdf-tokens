@@ -26,6 +26,7 @@ function createWindow(): void {
     : path.join(__dirname, '../renderer/index.html');
 
   mainWindow.loadFile(rendererHtmlPath);
+  mainWindow.webContents.openDevTools({ mode: 'detach' });
 
   pdfView = new WebContentsView({
     webPreferences: {
