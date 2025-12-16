@@ -1,9 +1,18 @@
 import path from 'node:path';
 import { pathToFileURL } from 'node:url';
 import { performance } from 'node:perf_hooks';
-import { createCanvas } from 'canvas';
+import { createCanvas, Image } from 'canvas';
 import { getDocument, GlobalWorkerOptions } from 'pdfjs-dist/legacy/build/pdf.mjs';
 import type { ExtractedContent, PageImage, PageText } from '../types';
+
+/**
+ * pdf.js will create Image instances when painting inline images. When running in
+ * Node via node-canvas, we need to expose the canvas Image constructor on the
+ * global object so drawImage receives a valid backing type instead of throwing
+ * "Image or Canvas expected".
+ */
+// eslint-disable-next-line @typescript-eslint/no-explicit-any
+(globalThis as any).Image = Image;
 
 const workerPath = path.join(__dirname, '../../node_modules/pdfjs-dist/legacy/build/pdf.worker.min.mjs');
 GlobalWorkerOptions.workerSrc = pathToFileURL(workerPath).href;
@@ -53,7 +62,28 @@ async function renderPageImage(doc: any, pageNumber: number): Promise<PageImage>
   const canvas = createCanvas(viewport.width, viewport.height);
   const context = canvas.getContext('2d');
 
-  await page.render({ canvasContext: context as any, viewport }).promise;
+  // Provide pdf.js with a concrete canvas factory so it doesn't attempt to
+  // construct browser canvases internally (which would lack the Image type in
+  // Node and trigger drawImage errors for inline images).
+  const canvasFactory = {
+    create(width: number, height: number) {
+      const nodeCanvas = createCanvas(width, height);
+      const ctx = nodeCanvas.getContext('2d');
+      return { canvas: nodeCanvas, context: ctx };
+    },
+    reset(canvasAndContext: { canvas: any }, width: number, height: number) {
+      canvasAndContext.canvas.width = width;
+      canvasAndContext.canvas.height = height;
+    },
+    destroy(canvasAndContext: { canvas: any; context: any }) {
+      canvasAndContext.canvas.width = 0;
+      canvasAndContext.canvas.height = 0;
+      canvasAndContext.canvas = null;
+      canvasAndContext.context = null;
+    },
+  };
+
+  await page.render({ canvasContext: context as any, viewport, canvasFactory }).promise;
 
   return {
     pageNumber,
