@@ -6,7 +6,8 @@
   "scripts": {
     "build": "tsc -p tsconfig.json && node scripts/copy-renderer.cjs",
     "start": "npm run build && electron .",
-    "clean": "rimraf dist"
+    "clean": "rimraf dist",
+    "extract:sample": "npm run build && node dist/scripts/extract-sample.js"
   },
   "author": "",
   "license": "MIT",
