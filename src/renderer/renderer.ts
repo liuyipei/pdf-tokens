@@ -1,6 +1,22 @@
-import type { ExtractedContent, PageImage, PageText } from '../types';
-
 let currentFilePath: string | undefined;
+
+interface PageText {
+  pageNumber: number;
+  text: string;
+  extractionTimeMs: number;
+}
+
+interface PageImage {
+  pageNumber: number;
+  dataUrl: string;
+  captureTimeMs: number;
+}
+
+interface ExtractedContent {
+  textPages: PageText[];
+  images: PageImage[];
+  totalExtractionTimeMs: number;
+}
 
 const selectButton = document.getElementById('selectFile') as HTMLButtonElement;
 const extractButton = document.getElementById('extract') as HTMLButtonElement;
