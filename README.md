@@ -19,6 +19,7 @@ Create a minimal Electron application to debug and validate PDF-to-image convers
 - **Node.js**: 22.x
 - **TypeScript**: Latest
 - **pdfjs-dist**: 5.4.449 (Mozilla's PDF.js for Node.js)
+- **canvas**: Node canvas for server-side PNG rendering of PDF pages
 - **Build**: electron-builder
 
 ## Architecture
@@ -48,7 +49,7 @@ minimal-pdf-debugger/
 1. **Window Management**: Create BrowserWindow with WebContentsView for PDF display
 2. **File Operations**: Handle file picker dialog and file path validation
 3. **PDF Extraction**: Use `pdfjs-dist` to extract text from all pages
-4. **Image Capture**: Capture page screenshots from WebContentsView
+4. **Image Capture**: Render each page to PNGs in the main process via `pdfjs-dist` + `canvas`
 5. **IPC Handlers**: Expose extraction functions to renderer process
 
 ### Renderer Process Responsibilities
@@ -60,81 +61,32 @@ minimal-pdf-debugger/
 
 ## Key Components
 
-### 1. PDF Text Extraction (Node.js)
+### 1. PDF Text + Image Extraction (Node.js)
+
+Pages are parsed once in the main process using `pdfjs-dist`. Text and images are produced together so timing reflects the full pipeline and does not rely on the embedded PDF viewer.
 
 ```typescript
 // src/main/pdf-extractor.ts
-import { getDocument } from 'pdfjs-dist/legacy/build/pdf.mjs';
-
-interface PageContent {
-  pageNumber: number;
-  text: string;
-  extractionTimeMs: number;
-}
-
-export async function extractPdfText(filePath: string): Promise<PageContent[]> {
-  const startTime = Date.now();
-  const loadingTask = getDocument(filePath);
+export async function extractPdfContent(filePath: string): Promise<ExtractedContent> {
+  const loadingTask = getDocument({ url: pathToFileURL(filePath).href });
   const doc = await loadingTask.promise;
 
-  const pages: PageContent[] = [];
-
-  for (let i = 1; i <= doc.numPages; i++) {
-    const pageStart = Date.now();
+  for (let i = 1; i <= doc.numPages; i += 1) {
     const page = await doc.getPage(i);
     const textContent = await page.getTextContent();
     const text = textContent.items.map((item: any) => item.str).join(' ');
 
-    pages.push({
-      pageNumber: i,
-      text,
-      extractionTimeMs: Date.now() - pageStart
-    });
+    const viewport = page.getViewport({ scale: 1.5 });
+    const canvas = createCanvas(viewport.width, viewport.height);
+    const context = canvas.getContext('2d');
+    await page.render({ canvasContext: context as any, viewport }).promise;
+
+    textPages.push({ pageNumber: i, text, extractionTimeMs: ... });
+    images.push({ pageNumber: i, dataUrl: canvas.toDataURL(), captureTimeMs: ... });
   }
 
-  console.log(`Total extraction time: ${Date.now() - startTime}ms for ${doc.numPages} pages`);
-  return pages;
+  return { textPages, images, totalExtractionTimeMs };
 }
-```
-
-### 2. PDF Image Capture (Electron)
-
-**Approach A: WebContentsView Screenshot** (Current)
-```typescript
-// Capture visible page only - limited by DOM virtualization
-async function captureVisiblePage(view: WebContentsView): Promise<Buffer> {
-  const image = await view.webContents.capturePage();
-  return image.toPNG();
-}
-```
-
-**Approach B: Programmatic Navigation + Capture** (To Test)
-```typescript
-// Navigate through pages and capture each
-async function captureAllPages(view: WebContentsView, numPages: number): Promise<Buffer[]> {
-  const images: Buffer[] = [];
-
-  for (let i = 1; i <= numPages; i++) {
-    await view.webContents.executeJavaScript(`
-      const embed = document.querySelector('embed');
-      embed.src = embed.src.split('#')[0] + '#page=' + ${i};
-    `);
-
-    await new Promise(resolve => setTimeout(resolve, 500)); // Wait for render
-
-    const image = await view.webContents.capturePage();
-    images.push(image.toPNG());
-  }
-
-  return images;
-}
-```
-
-**Approach C: Server-Side Rendering** (Alternative)
-```typescript
-// Requires canvas package or pdf-to-png package
-// Use pdfjs-dist with node-canvas to render pages server-side
-// Avoids DOM virtualization entirely
 ```
 
 ### 3. Main Window UI
@@ -209,6 +161,12 @@ document.getElementById('extract')?.addEventListener('click', async () => {
   displayResults(content);
 });
 ```
+
+## Troubleshooting
+
+### Why the **Select PDF** button was unresponsive
+
+The renderer script is loaded directly in the browser context without a bundler. Earlier, the renderer imported shared TypeScript types, which turned the file into a CommonJS module under the project-wide `module: "CommonJS"` setting. When compiled, TypeScript emitted `exports` boilerplate that expected a Node-like module system. Because that helper ran as soon as the page loaded (and `exports` is undefined in the renderer), the script threw before it could register the click handlers, leaving the **Select PDF** button inert. After inlining the renderer-only types and keeping the file free of imports/exports, the compiled script now executes as a plain browser script and attaches the button listeners normally.
 
 ## What We're Testing
 
@@ -286,3 +244,19 @@ This minimal app will help us determine:
 - **Verbose logging**: Console output for every step
 
 This isolation makes it easy to identify whether issues are in PDF handling or LLM integration.
+
+## Getting Started
+
+1. Install dependencies (Node.js 22.x recommended):
+
+   ```bash
+   npm install
+   ```
+
+2. Start the Electron app:
+
+   ```bash
+   npm start
+   ```
+
+3. Use **Select PDF** to choose a file, then **Extract Content** to run text extraction and page captures. Results and timings are shown in the main window while the PDF renders in the WebContentsView sidebar.

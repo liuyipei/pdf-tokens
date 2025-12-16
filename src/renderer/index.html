@@ -1,0 +1,36 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>PDF Extraction Debugger</title>
+  <link rel="stylesheet" href="styles.css" />
+</head>
+<body>
+  <header>
+    <h1>PDF Extraction Debugger</h1>
+    <div class="actions">
+      <button id="selectFile">Select PDF</button>
+      <button id="extract" disabled>Extract Content</button>
+    </div>
+  </header>
+
+  <main>
+    <section class="status">
+      <div id="status">Select a PDF to begin.</div>
+    </section>
+    <section class="results">
+      <div class="column">
+        <h2>Text Results</h2>
+        <div id="textResults" class="scrollable"></div>
+      </div>
+      <div class="column">
+        <h2>Captured Images</h2>
+        <div id="imageResults" class="scrollable images"></div>
+      </div>
+    </section>
+  </main>
+
+  <script src="renderer.js"></script>
+</body>
+</html>
