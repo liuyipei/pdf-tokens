@@ -21,7 +21,11 @@ function createWindow(): void {
     },
   });
 
-  mainWindow.loadFile(path.join(__dirname, '../renderer/index.html'));
+  const rendererHtmlPath = app.isPackaged
+    ? path.join(process.resourcesPath, 'dist', 'renderer', 'index.html')
+    : path.join(__dirname, '../renderer/index.html');
+
+  mainWindow.loadFile(rendererHtmlPath);
 
   pdfView = new WebContentsView({
     webPreferences: {

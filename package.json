@@ -4,7 +4,7 @@
   "description": "Minimal Electron app for debugging PDF text and image extraction",
   "main": "dist/main/main.js",
   "scripts": {
-    "build": "tsc -p tsconfig.json && cp -r src/renderer dist/renderer",
+    "build": "tsc -p tsconfig.json && node scripts/copy-renderer.cjs",
     "start": "npm run build && electron .",
     "clean": "rimraf dist"
   },
