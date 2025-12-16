@@ -210,6 +210,12 @@ document.getElementById('extract')?.addEventListener('click', async () => {
 });
 ```
 
+## Troubleshooting
+
+### Why the **Select PDF** button was unresponsive
+
+The renderer script is loaded directly in the browser context without a bundler. Earlier, the renderer imported shared TypeScript types, which turned the file into a CommonJS module under the project-wide `module: "CommonJS"` setting. When compiled, TypeScript emitted `exports` boilerplate that expected a Node-like module system. Because that helper ran as soon as the page loaded (and `exports` is undefined in the renderer), the script threw before it could register the click handlers, leaving the **Select PDF** button inert. After inlining the renderer-only types and keeping the file free of imports/exports, the compiled script now executes as a plain browser script and attaches the button listeners normally.
+
 ## What We're Testing
 
 ### Primary Questions
