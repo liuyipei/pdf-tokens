@@ -2,8 +2,9 @@ import path from 'node:path';
 import { pathToFileURL } from 'node:url';
 import { performance } from 'node:perf_hooks';
 import { createCanvas, Image } from 'canvas';
-import { getDocument, GlobalWorkerOptions } from 'pdfjs-dist/legacy/build/pdf.mjs';
 import type { ExtractedContent, PageImage, PageText } from '../types';
+
+type PdfJsModule = typeof import('pdfjs-dist');
 
 /**
  * pdf.js will create Image instances when painting inline images. When running in
@@ -14,10 +15,24 @@ import type { ExtractedContent, PageImage, PageText } from '../types';
 // eslint-disable-next-line @typescript-eslint/no-explicit-any
 (globalThis as any).Image = Image;
 
-const workerPath = path.join(__dirname, '../../node_modules/pdfjs-dist/legacy/build/pdf.worker.min.mjs');
-GlobalWorkerOptions.workerSrc = pathToFileURL(workerPath).href;
-const standardFontPath = path.join(__dirname, '../../node_modules/pdfjs-dist/standard_fonts/');
-(GlobalWorkerOptions as any).standardFontDataUrl = `${pathToFileURL(standardFontPath).href}`;
+let pdfjs: (PdfJsModule & { GlobalWorkerOptions: any }) | null = null;
+
+function loadPdfJs(): PdfJsModule & { GlobalWorkerOptions: any } {
+  if (pdfjs) return pdfjs;
+
+  // Import the CommonJS build after the Image global is patched so pdf.js picks
+  // up the correct constructor when decoding inline images.
+  // eslint-disable-next-line @typescript-eslint/no-var-requires
+  const loaded = require('pdfjs-dist/legacy/build/pdf.js') as PdfJsModule & { GlobalWorkerOptions: any };
+
+  const workerPath = path.join(__dirname, '../../node_modules/pdfjs-dist/legacy/build/pdf.worker.min.js');
+  loaded.GlobalWorkerOptions.workerSrc = pathToFileURL(workerPath).href;
+  const standardFontPath = path.join(__dirname, '../../node_modules/pdfjs-dist/standard_fonts/');
+  loaded.GlobalWorkerOptions.standardFontDataUrl = `${pathToFileURL(standardFontPath).href}`;
+
+  pdfjs = loaded;
+  return loaded;
+}
 
 export interface TextExtractionResult {
   pages: PageText[];
@@ -27,6 +42,7 @@ export interface TextExtractionResult {
 
 export async function extractPdfText(filePath: string): Promise<TextExtractionResult> {
   const startTime = performance.now();
+  const { getDocument } = loadPdfJs();
   const loadingTask = getDocument({ url: pathToFileURL(filePath).href });
   const doc = await loadingTask.promise;
 
@@ -94,6 +110,7 @@ async function renderPageImage(doc: any, pageNumber: number): Promise<PageImage>
 
 export async function extractPdfContent(filePath: string): Promise<ExtractedContent> {
   const startTime = performance.now();
+  const { getDocument } = loadPdfJs();
   const loadingTask = getDocument({ url: pathToFileURL(filePath).href });
   const doc = await loadingTask.promise;
 
