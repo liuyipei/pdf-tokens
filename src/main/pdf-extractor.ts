@@ -8,7 +8,7 @@ import type { ExtractedContent, PageImage, PageText } from '../types';
 const workerPath = path.join(__dirname, '../../node_modules/pdfjs-dist/legacy/build/pdf.worker.min.mjs');
 GlobalWorkerOptions.workerSrc = pathToFileURL(workerPath).href;
 const standardFontPath = path.join(__dirname, '../../node_modules/pdfjs-dist/standard_fonts/');
-GlobalWorkerOptions.standardFontDataUrl = `${pathToFileURL(standardFontPath).href}`;
+(GlobalWorkerOptions as any).standardFontDataUrl = `${pathToFileURL(standardFontPath).href}`;
 
 export interface TextExtractionResult {
   pages: PageText[];
